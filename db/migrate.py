@@ -16,7 +16,7 @@ SCHEMA_VERSION = 1
 def migrate(db_path=DEFAULT_DB_PATH, schema_path=SCHEMA_PATH):
     """Létrehozza az adatbázist a séma alapján, a már migrált adatbázist nem módosítja.
 
-    A séma és a verziószám egy tranzakcióban fut le, így hibánál üres marad az adatbázis.
+    A séma és a verziószám egy tranzakcióban fut le, így hibánál üres marad a fájl.
     """
     schema = Path(schema_path).read_text(encoding="utf-8")
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
