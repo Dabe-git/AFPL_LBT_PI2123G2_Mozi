@@ -69,3 +69,23 @@ erDiagram
 
 - **Átfedő vetítések:** a séma csak az azonos kezdési időpontot tiltja. Azt, hogy egy vetítés ne kezdődjön egy másik vége előtt ugyanabban a teremben, az alkalmazásnak kell ellenőriznie, mert ez a film hosszától függ.
 - **Idegen kulcsok:** az SQLite csak akkor ellenőrzi őket, ha az adott kapcsolaton lefutott a `PRAGMA foreign_keys = ON` parancs.
+
+## Migráció
+
+A séma a [`db/migrate.py`](../db/migrate.py) szkripttel kerül az adatbázisba:
+
+```sh
+python db/migrate.py [adatbázis fájl útvonala]
+```
+
+Paraméter nélkül a `db/mozi.sqlite` fájlt hozza létre, sikeres futás után pedig kiírja: `Migration finished`.
+
+- **Többszöri futtatás:** a már migrált adatbázist nem módosítja, ezt a `PRAGMA user_version` értéke jelzi.
+- **Hiba esetén:** a séma egy tranzakcióban fut le, így nem marad félig létrehozott adatbázis.
+
+A tesztek futtatása:
+
+```sh
+pip install -r requirements-dev.txt
+pytest
+```
