@@ -1,11 +1,13 @@
-"""Mozi Foglalasi Backend HTTP API szerver (E2 osszekoto).
+"""Mozi Foglalasi Backend HTTP API szerver (E2 + E3.3 vegpontok).
 
-Kulso fuggosegek nelkul (stdlib http.server) szolgalja ki a 2.1-2.4 vegpontokat:
+Kulso fuggosegek nelkul (stdlib http.server) szolgalja ki a vegpontokat:
   - GET    /api/screenings
   - GET    /api/screenings/<id>/seats
   - POST   /api/reservations
   - DELETE /api/reservations/<id>
   - POST   /api/reservations/<id>/cancel
+  - GET    /api/recommendations   (3.3 hely + idopont ajanlo)
+  - POST   /api/recommendations   (3.3 hely + idopont ajanlo)
 
 Hasznalat: python -m backend.server [--port 8000]
 """
@@ -36,12 +38,27 @@ from backend.create_booking import (
 from backend.create_booking import (
     ScreeningNotFoundError as BookingScreeningNotFound,
 )
+from backend.recommender import recommend_screening_and_seats
 from backend.weekly_schedule import get_weekly_schedule
 from db.migrate import DEFAULT_DB_PATH
 from db.seed import seed
 
 SEATS_ROUTE = re.compile(r"^/api/screenings/(\d+)/seats/?$")
 CANCEL_ROUTE = re.compile(r"^/api/reservations/(\d+)(?:/cancel)?/?$")
+RECOMMEND_PATHS = (
+    "/api/recommendations",
+    "/api/recommendations/",
+    "/api/recommend",
+    "/api/recommend/",
+)
+
+
+def _parse_bool(raw: Any) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    if raw is None:
+        return False
+    return str(raw).strip().lower() in ("1", "true", "yes", "igen")
 
 
 def create_handler(db_path: str | Path) -> type[BaseHTTPRequestHandler]:
@@ -69,6 +86,39 @@ def create_handler(db_path: str | Path) -> type[BaseHTTPRequestHandler]:
                 raise ValueError("JSON objektum szukseges.")
             return data
 
+        def _handle_recommend(self, params: dict[str, Any]) -> None:
+            try:
+                group_size = int(
+                    params.get(
+                        "group_size",
+                        params.get("letszam", params.get("seats", 2)),
+                    )
+                )
+                mufaj = params.get("genre", params.get("mufaj"))
+                nap = params.get("day", params.get("nap"))
+                napszak = params.get("time_of_day", params.get("napszak"))
+                start_raw = params.get("start_date")
+                start_dt = date.fromisoformat(start_raw) if start_raw else None
+                days = int(params.get("days", 7))
+                limit = int(params.get("limit", 5))
+                strict = _parse_bool(params.get("strict", False))
+
+                result = recommend_screening_and_seats(
+                    db_path,
+                    group_size=group_size,
+                    mufaj=mufaj,
+                    nap=nap,
+                    napszak=napszak,
+                    start_date=start_dt,
+                    days=days,
+                    limit=limit,
+                    strict=strict,
+                )
+            except ValueError as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"detail": str(exc)})
+                return
+            self._send_json(HTTPStatus.OK, result)
+
         def do_OPTIONS(self) -> None:  # noqa: N802
             self._send_json(HTTPStatus.NO_CONTENT, {})
 
@@ -88,6 +138,12 @@ def create_handler(db_path: str | Path) -> type[BaseHTTPRequestHandler]:
                 self._send_json(HTTPStatus.OK, result)
                 return
 
+            if path in RECOMMEND_PATHS:
+                qs = parse_qs(parsed.query)
+                flat_params = {k: v[0] for k, v in qs.items() if v}
+                self._handle_recommend(flat_params)
+                return
+
             match = SEATS_ROUTE.match(path)
             if match:
                 vetites_id = int(match.group(1))
@@ -104,6 +160,15 @@ def create_handler(db_path: str | Path) -> type[BaseHTTPRequestHandler]:
         def do_POST(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
             path = parsed.path
+
+            if path in RECOMMEND_PATHS:
+                try:
+                    body = self._read_json_body()
+                except (ValueError, json.JSONDecodeError) as exc:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"detail": str(exc)})
+                    return
+                self._handle_recommend(body)
+                return
 
             if path in ("/api/reservations", "/api/reservations/"):
                 try:
