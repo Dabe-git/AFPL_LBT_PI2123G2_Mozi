@@ -29,11 +29,11 @@ export const MOCK_MOVIES = [
       "Egy távoli galaxis peremén maroknyi felfedező olyan ősi jelre bukkan, amely örökre megváltoztatja az emberiség jövőjét.",
     gradient: "linear-gradient(135deg, #1e3a8a 0%, #7e22ce 100%)",
     screenings: [
-      { id: 101, day: "Hétfő", time: "14:30", hall: "1. Terem (IMAX)", free_seats: 64, total_seats: 80 },
-      { id: 102, day: "Hétfő", time: "19:00", hall: "1. Terem (IMAX)", free_seats: 12, total_seats: 80 },
-      { id: 103, day: "Szerda", time: "18:30", hall: "1. Terem (IMAX)", free_seats: 45, total_seats: 80 },
-      { id: 104, day: "Péntek", time: "20:15", hall: "1. Terem (IMAX)", free_seats: 8, total_seats: 80 },
-      { id: 105, day: "Szombat", time: "16:00", hall: "1. Terem (IMAX)", free_seats: 52, total_seats: 80 },
+      { id: 101, day: "Hétfő", time: "14:30", hall: "1. Terem (IMAX)", rows: 8, cols: 10, free_seats: 64, total_seats: 80 },
+      { id: 102, day: "Hétfő", time: "19:00", hall: "1. Terem (IMAX)", rows: 8, cols: 10, free_seats: 12, total_seats: 80 },
+      { id: 103, day: "Szerda", time: "18:30", hall: "1. Terem (IMAX)", rows: 8, cols: 10, free_seats: 45, total_seats: 80 },
+      { id: 104, day: "Péntek", time: "20:15", hall: "1. Terem (IMAX)", rows: 8, cols: 10, free_seats: 8, total_seats: 80 },
+      { id: 105, day: "Szombat", time: "16:00", hall: "1. Terem (IMAX)", rows: 8, cols: 10, free_seats: 52, total_seats: 80 },
     ],
   },
   {
@@ -46,10 +46,10 @@ export const MOCK_MOVIES = [
       "Látványos autós üldözések és titkosszolgálati játszmák a Duna mindkét partján, amikor egy nemzetközi küldetés balul sül el.",
     gradient: "linear-gradient(135deg, #991b1b 0%, #d97706 100%)",
     screenings: [
-      { id: 201, day: "Kedd", time: "17:00", hall: "2. Terem", free_seats: 38, total_seats: 60 },
-      { id: 202, day: "Csütörtök", time: "20:00", hall: "2. Terem", free_seats: 19, total_seats: 60 },
-      { id: 203, day: "Péntek", time: "21:00", hall: "2. Terem", free_seats: 5, total_seats: 60 },
-      { id: 204, day: "Vasárnap", time: "19:30", hall: "2. Terem", free_seats: 41, total_seats: 60 },
+      { id: 201, day: "Kedd", time: "17:00", hall: "2. Terem", rows: 6, cols: 10, free_seats: 38, total_seats: 60 },
+      { id: 202, day: "Csütörtök", time: "20:00", hall: "2. Terem", rows: 6, cols: 10, free_seats: 19, total_seats: 60 },
+      { id: 203, day: "Péntek", time: "21:00", hall: "2. Terem", rows: 6, cols: 10, free_seats: 5, total_seats: 60 },
+      { id: 204, day: "Vasárnap", time: "19:30", hall: "2. Terem", rows: 6, cols: 10, free_seats: 41, total_seats: 60 },
     ],
   },
   {
@@ -62,10 +62,10 @@ export const MOCK_MOVIES = [
       "Négy egyetemista 48 órája a határidő előtt: merge konfliktusok, eltűnt adatbázisok és egy felejthetetlen hétvége története.",
     gradient: "linear-gradient(135deg, #065f46 0%, #0284c7 100%)",
     screenings: [
-      { id: 301, day: "Hétfő", time: "10:30", hall: "3. Terem (VIP)", free_seats: 28, total_seats: 30 },
-      { id: 302, day: "Szerda", time: "15:00", hall: "3. Terem (VIP)", free_seats: 22, total_seats: 30 },
-      { id: 303, day: "Szombat", time: "11:00", hall: "3. Terem (VIP)", free_seats: 25, total_seats: 30 },
-      { id: 304, day: "Szombat", time: "18:00", hall: "3. Terem (VIP)", free_seats: 9, total_seats: 30 },
+      { id: 301, day: "Hétfő", time: "10:30", hall: "3. Terem (VIP)", rows: 5, cols: 6, free_seats: 28, total_seats: 30 },
+      { id: 302, day: "Szerda", time: "15:00", hall: "3. Terem (VIP)", rows: 5, cols: 6, free_seats: 22, total_seats: 30 },
+      { id: 303, day: "Szombat", time: "11:00", hall: "3. Terem (VIP)", rows: 5, cols: 6, free_seats: 25, total_seats: 30 },
+      { id: 304, day: "Szombat", time: "18:00", hall: "3. Terem (VIP)", rows: 5, cols: 6, free_seats: 9, total_seats: 30 },
     ],
   },
   {
@@ -78,9 +78,9 @@ export const MOCK_MOVIES = [
       "Egy visszavonult zongoraművész és fiatal tanítványa közös felkészülése az évszázad koncertjére.",
     gradient: "linear-gradient(135deg, #3730a3 0%, #be185d 100%)",
     screenings: [
-      { id: 401, day: "Kedd", time: "19:30", hall: "3. Terem (VIP)", free_seats: 17, total_seats: 30 },
-      { id: 402, day: "Csütörtök", time: "16:30", hall: "2. Terem", free_seats: 49, total_seats: 60 },
-      { id: 403, day: "Vasárnap", time: "17:00", hall: "1. Terem (IMAX)", free_seats: 60, total_seats: 80 },
+      { id: 401, day: "Kedd", time: "19:30", hall: "3. Terem (VIP)", rows: 5, cols: 6, free_seats: 17, total_seats: 30 },
+      { id: 402, day: "Csütörtök", time: "16:30", hall: "2. Terem", rows: 6, cols: 10, free_seats: 49, total_seats: 60 },
+      { id: 403, day: "Vasárnap", time: "17:00", hall: "1. Terem (IMAX)", rows: 8, cols: 10, free_seats: 60, total_seats: 80 },
     ],
   },
   {
@@ -93,9 +93,9 @@ export const MOCK_MOVIES = [
       "Egy elszigetelt hegyi szállodában hirtelen elmegy az áram, és a vendégek rájönnek, hogy valaki nem az, akinek mondja magát.",
     gradient: "linear-gradient(135deg, #111827 0%, #4b5563 100%)",
     screenings: [
-      { id: 501, day: "Szerda", time: "21:15", hall: "2. Terem", free_seats: 33, total_seats: 60 },
-      { id: 502, day: "Péntek", time: "22:30", hall: "1. Terem (IMAX)", free_seats: 40, total_seats: 80 },
-      { id: 503, day: "Szombat", time: "22:00", hall: "2. Terem", free_seats: 14, total_seats: 60 },
+      { id: 501, day: "Szerda", time: "21:15", hall: "2. Terem", rows: 6, cols: 10, free_seats: 33, total_seats: 60 },
+      { id: 502, day: "Péntek", time: "22:30", hall: "1. Terem (IMAX)", rows: 8, cols: 10, free_seats: 40, total_seats: 80 },
+      { id: 503, day: "Szombat", time: "22:00", hall: "2. Terem", rows: 6, cols: 10, free_seats: 14, total_seats: 60 },
     ],
   },
 ];

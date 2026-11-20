@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 
 /**
- * 4.2 Ülésválasztó nézet (mock adatokkal) - Issue #17
+ * 4.2 Ülésválasztó nézet (mock adatokkal + Backend API integrációval) - Issue #17
  * React komponens interaktív moziterem térképpel, helypontozó (3.1) algoritmussal,
  * automatikus csoport-ajánlással és foglalás-véglegesítéssel (2.3 kompatibilis).
  */
@@ -14,25 +14,25 @@ const DEFAULT_SCREENING = {
   time: "19:00",
   hall: "1. Terem (IMAX)",
   rows: 8,
-  cols: 12,
+  cols: 10,
   ticketPrice: 2800,
 };
 
 // Mock foglalt székek (1-től induló sor és szék számozás)
 const MOCK_OCCUPIED_SEATS = [
+  { row: 3, col: 5 },
   { row: 3, col: 6 },
-  { row: 3, col: 7 },
+  { row: 4, col: 4 },
   { row: 4, col: 5 },
   { row: 4, col: 6 },
   { row: 4, col: 7 },
-  { row: 4, col: 8 },
+  { row: 5, col: 3 },
   { row: 5, col: 4 },
-  { row: 5, col: 5 },
+  { row: 6, col: 8 },
   { row: 6, col: 9 },
-  { row: 6, col: 10 },
   { row: 2, col: 3 },
+  { row: 7, col: 5 },
   { row: 7, col: 6 },
-  { row: 7, col: 7 },
 ];
 
 /**
@@ -107,11 +107,26 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [bookingMessage, setBookingMessage] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dataSource, setDataSource] = useState("Mock adatok (#17)");
 
   const totalRows = screening.rows || 8;
-  const totalCols = screening.cols || 12;
+  const totalCols = screening.cols || 10;
   const ticketPrice = screening.ticketPrice || 2800;
+
+  // Ha propként érkezik új vetítés, frissítjük a state-et
+  useEffect(() => {
+    if (screeningProp) {
+      setScreening({
+        ...DEFAULT_SCREENING,
+        ...screeningProp,
+        rows: screeningProp.rows || 8,
+        cols: screeningProp.cols || 10,
+      });
+      setSelectedSeats([]);
+      setBookingMessage(null);
+    }
+  }, [screeningProp]);
 
   // Ha a 4.1 Műsor nézetből érkezett kiválasztott vetítés sessionStorage-ban, betöltjük
   useEffect(() => {
@@ -124,7 +139,7 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
             ...prev,
             ...parsed,
             rows: parsed.rows || 8,
-            cols: parsed.cols || 12,
+            cols: parsed.cols || 10,
           }));
         }
       } catch (e) {
@@ -133,29 +148,35 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
     }
   }, [screeningProp]);
 
-  // Próbálkozás a Backend API-val (2.2 Szabad helyek lekérdezése), ha fut a szerver
-  useEffect(() => {
-    let isMounted = true;
-    fetch(`/api/screenings/${screening.id}/seats`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Backend nem elérhető");
-        return res.json();
-      })
-      .then((data) => {
-        if (isMounted && Array.isArray(data.occupied)) {
-          const newSet = new Set();
-          data.occupied.forEach((s) => newSet.add(`${s.row}-${s.col}`));
-          setOccupiedKeys(newSet);
-          setDataSource("Élő Backend API");
+  // Szabad helyek lekérdezése a Backend API-ról (2.2 végpont)
+  const fetchSeatsFromBackend = useCallback(async (screeningId) => {
+    try {
+      const res = await fetch(`/api/screenings/${screeningId}/seats`);
+      if (!res.ok) throw new Error("Backend nem elérhető");
+      const data = await res.json();
+
+      if (Array.isArray(data.occupied)) {
+        const newSet = new Set();
+        data.occupied.forEach((s) => newSet.add(`${s.row}-${s.col}`));
+        setOccupiedKeys(newSet);
+        setDataSource("Élő Backend API");
+
+        if (data.rows && data.cols) {
+          setScreening((prev) => ({
+            ...prev,
+            rows: data.rows,
+            cols: data.cols,
+          }));
         }
-      })
-      .catch(() => {
-        // Hiba esetén maradnak a beépített mock foglalt székek
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [screening.id]);
+      }
+    } catch (err) {
+      // Hiba esetén maradnak a beépített mock foglalt székek
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSeatsFromBackend(screening.id);
+  }, [screening.id, fetchSeatsFromBackend]);
 
   // Ajánlott székek automatikus kiszámítása a 3.1 algoritmussal
   const recommendedSeats = useMemo(() => {
@@ -183,7 +204,10 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
 
   const handleConfirmBooking = async (e) => {
     e.preventDefault();
-    if (selectedSeats.length === 0) return;
+    if (selectedSeats.length === 0 || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setBookingMessage(null);
 
     const payload = {
       screening_id: screening.id,
@@ -193,13 +217,29 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
     };
 
     try {
-      await fetch("/api/reservations", {
+      const res = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
+      // Ha a backend elérhető, de hibát ad (pl. 409 Conflict - már lefoglalták közben)
+      if (!res.ok) {
+        let errorMsg = "A foglalás sikertelen. Lehet, hogy az egyik helyet időközben lefoglalták.";
+        try {
+          const errData = await res.json();
+          if (errData.detail) errorMsg = errData.detail;
+        } catch (_) {
+          // Nem JSON hibaüzenet
+        }
+        setBookingMessage({ type: "error", text: errorMsg });
+        await fetchSeatsFromBackend(screening.id);
+        setSelectedSeats([]);
+        setIsSubmitting(false);
+        return;
+      }
     } catch (err) {
-      // Lokális mock mentés
+      // Backend nem fut -> lokális mock módban folytatjuk
     }
 
     // Beállítjuk a kiválasztott székeket foglaltnak (dupla foglalás azonnali tiltása)
@@ -218,6 +258,7 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
       text: `Sikeres foglalás (${selectedSeats.length} db jegy): ${bookedList}!`,
     });
     setSelectedSeats([]);
+    setIsSubmitting(false);
   };
 
   const totalScoreAvg = useMemo(() => {
@@ -226,7 +267,7 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
     return (sum / selectedSeats.length).toFixed(1);
   }, [selectedSeats]);
 
-  const freeSeatsCount = totalRows * totalCols - occupiedKeys.size;
+  const freeSeatsCount = Math.max(0, totalRows * totalCols - occupiedKeys.size);
 
   return (
     <div style={styles.page}>
@@ -235,7 +276,7 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
           <div style={styles.brand}>
             🎟️ AFPL <span style={{ color: "#e11d48" }}>Mozi</span> – Ülésválasztó (4.2)
           </div>
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
             {onBack && (
               <button type="button" onClick={onBack} style={styles.btnSecondary}>
                 ← Vissza a műsorhoz
@@ -254,7 +295,9 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
             <div style={styles.metaRow}>
               <span style={styles.metaTag}>📅 {screening.day}, {screening.time}</span>
               <span style={styles.metaTag}>🏛️ {screening.hall}</span>
-              <span style={styles.metaTag}>🪑 Szabad helyek: {freeSeatsCount} / {totalRows * totalCols}</span>
+              <span style={styles.metaTag}>
+                🪑 Szabad helyek: {freeSeatsCount} / {totalRows * totalCols}
+              </span>
             </div>
           </div>
 
@@ -281,7 +324,11 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
                   type="button"
                   onClick={handleApplyRecommendation}
                   disabled={recommendedSeats.length === 0}
-                  style={styles.btnRecommend}
+                  style={{
+                    ...styles.btnRecommend,
+                    opacity: recommendedSeats.length === 0 ? 0.5 : 1,
+                    cursor: recommendedSeats.length === 0 ? "not-allowed" : "pointer",
+                  }}
                 >
                   ✨ Legjobb helyek kijelölése
                 </button>
@@ -295,6 +342,11 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
                   Pontszámok (3.1) mutatása
                 </label>
               </div>
+              {recommendedSeats.length === 0 && (
+                <span style={{ color: "#f59e0b", fontSize: "0.78rem", marginTop: "0.25rem" }}>
+                  Nincs {groupSize} db egymás melletti szabad hely ebben a teremben.
+                </span>
+              )}
             </div>
           </div>
         </section>
@@ -310,7 +362,13 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
             {/* Jelmagyarázat */}
             <div style={styles.legendRow}>
               <div style={styles.legendItem}>
-                <span style={{ ...styles.legendDot, backgroundColor: "#1e293b", border: "1px solid #475569" }} />
+                <span
+                  style={{
+                    ...styles.legendDot,
+                    backgroundColor: "#1e293b",
+                    border: "1px solid #475569",
+                  }}
+                />
                 Szabad
               </div>
               <div style={styles.legendItem}>
@@ -318,11 +376,23 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
                 Kiválasztott
               </div>
               <div style={styles.legendItem}>
-                <span style={{ ...styles.legendDot, backgroundColor: "#0f172a", border: "2px dashed #10b981" }} />
+                <span
+                  style={{
+                    ...styles.legendDot,
+                    backgroundColor: "#0f172a",
+                    border: "2px dashed #10b981",
+                  }}
+                />
                 Ajánlott (3.1)
               </div>
               <div style={styles.legendItem}>
-                <span style={{ ...styles.legendDot, backgroundColor: "#334155", opacity: 0.45 }} />
+                <span
+                  style={{
+                    ...styles.legendDot,
+                    backgroundColor: "#334155",
+                    opacity: 0.45,
+                  }}
+                />
                 Foglalt
               </div>
             </div>
@@ -391,7 +461,15 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
             </h2>
 
             {bookingMessage && (
-              <div style={styles.successBanner}>{bookingMessage.text}</div>
+              <div
+                style={
+                  bookingMessage.type === "error"
+                    ? styles.errorBanner
+                    : styles.successBanner
+                }
+              >
+                {bookingMessage.text}
+              </div>
             )}
 
             {selectedSeats.length === 0 ? (
@@ -462,8 +540,17 @@ export default function UlesvalasztoNezet({ screeningProp, onBack }) {
                     />
                   </div>
 
-                  <button type="submit" style={styles.btnPrimary}>
-                    Foglalás véglegesítése ({selectedSeats.length} hely)
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    style={{
+                      ...styles.btnPrimary,
+                      opacity: isSubmitting ? 0.6 : 1,
+                    }}
+                  >
+                    {isSubmitting
+                      ? "Foglalás folyamatban..."
+                      : `Foglalás véglegesítése (${selectedSeats.length} hely)`}
                   </button>
                 </form>
               </>
@@ -575,7 +662,6 @@ const styles = {
     border: "none",
     padding: "0.55rem 0.95rem",
     borderRadius: "8px",
-    cursor: "pointer",
     fontWeight: 700,
     fontSize: "0.88rem",
   },
@@ -590,7 +676,7 @@ const styles = {
   },
   contentGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 340px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
     gap: "1.5rem",
     alignItems: "start",
   },
@@ -662,8 +748,8 @@ const styles = {
     gap: "0.4rem",
   },
   seatBtn: {
-    width: "40px",
-    height: "40px",
+    width: "38px",
+    height: "38px",
     borderRadius: "8px 8px 4px 4px",
     color: "#f8fafc",
     display: "flex",
@@ -770,6 +856,16 @@ const styles = {
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     border: "1px solid rgba(16, 185, 129, 0.4)",
     color: "#10b981",
+    padding: "0.75rem",
+    borderRadius: "8px",
+    fontSize: "0.88rem",
+    marginBottom: "1rem",
+    fontWeight: 600,
+  },
+  errorBanner: {
+    backgroundColor: "rgba(225, 29, 72, 0.15)",
+    border: "1px solid rgba(225, 29, 72, 0.4)",
+    color: "#fda4af",
     padding: "0.75rem",
     borderRadius: "8px",
     fontSize: "0.88rem",
